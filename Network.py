@@ -1,37 +1,36 @@
 import numpy as np
 from tqdm import tqdm
-from utils import ReLU, d_ReLU, L2Loss, d_L2Loss
+from utils import L2Loss, d_L2Loss
 
 
 class Network(object):
 
-    def __init__(self, layer_dimensions):
+    def __init__(self, layer_dimensions, activation):
         """
         initialize the networks parameters using kaiming initialization (we used ReLU activation)
 
         :param layer_dimensions: dimensions of linear layers
         """
-
+        self.activation_func = activation["func"]
+        self.d_activation_func = activation["d_func"]
         self.layer_dimensions = layer_dimensions
-        self.weights = [np.random.normal(0.0, np.math.sqrt(2 / in_dim), size=(out_dim, in_dim)) for in_dim, out_dim in
+        self.weights = [np.random.normal(0.0, np.math.sqrt(1 / in_dim), size=(out_dim, in_dim)) for in_dim, out_dim in
                         zip(self.layer_dimensions[:-1], self.layer_dimensions[1:])]
         self.biases = [np.zeros((dim, 1)) for dim in self.layer_dimensions[1:]]
 
-    def SGD(self, epochs, lr, batch_size, train, test=None):
+    def SGD(self, epochs, lr, batch_size, train):
         """
 
         :param epochs: number of iterations over the dataset
         :param lr: learning rate
         :param batch_size:
         :param train: train set
-        :param test: test set
         :return: lists of weight sizes, test and train losses over epochs
         """
         num_of_batches = len(train) // batch_size
         training_losses = []
-        test_losses = []
         avg_weights = []
-        for epoch in tqdm(range(epochs)):
+        for _ in tqdm(range(epochs)):
             np.random.shuffle(train)
             batches = np.array_split(train, num_of_batches)
             training_loss = 0
@@ -39,10 +38,8 @@ class Network(object):
                 training_loss += self.batch_step(batch, lr)
             training_losses.append(training_loss / len(train))
             avg_weights.append(self.average_weights())
-            if test is not None:
-                test_loss = self.evaluate_test(test)
-                test_losses.append(test_loss)
-        return {"train_loss": training_losses, "test_loss": test_losses, "avg_weight": avg_weights}
+
+        return {"train_loss": training_losses, "avg_weight": avg_weights}
 
     def batch_step(self, batch, lr):
         """
@@ -73,7 +70,7 @@ class Network(object):
         """
         a = x.reshape(-1, 1)
         for w, b in zip(self.weights[:-1], self.biases[:-1]):
-            a = ReLU(np.dot(w, a) + b)
+            a = self.activation_func(np.dot(w, a) + b)
         return np.dot(self.weights[-1], a) + self.biases[-1]
 
     def backward(self, x, y):
@@ -95,7 +92,7 @@ class Network(object):
         for w, b in zip(self.weights[:-1], self.biases[:-1]):
             c = np.dot(w, a) + b
             c_values.append(c)
-            a = ReLU(c)
+            a = self.activation_func(c)
             a_values.append(a)
         c = np.dot(self.weights[-1], a) + self.biases[-1]
         c_values.append(c)
@@ -110,7 +107,7 @@ class Network(object):
 
         for l in range(2, len(self.weights) + 1):  # propagate the derivative using the chain rule
             c_l = c_values[-l]
-            delta = np.dot(self.weights[-l + 1].T, delta) * d_ReLU(c_l)
+            delta = np.dot(self.weights[-l + 1].T, delta) * self.d_activation_func(c_l)
             partial_bs[-l] = delta
             partial_ws[-l] = np.dot(delta, a_values[-l - 1].T)
         return partial_ws, partial_bs, L2Loss(a_values[-1], y)
