@@ -1,6 +1,7 @@
 import numpy as np
 from tqdm import tqdm
 from utils import L2Loss, d_L2Loss
+from functools import partial
 
 
 class Network(object):
@@ -17,35 +18,42 @@ class Network(object):
         self.weights = [np.random.normal(0.0, np.math.sqrt(1 / in_dim), size=(out_dim, in_dim)) for in_dim, out_dim in
                         zip(self.layer_dimensions[:-1], self.layer_dimensions[1:])]
         self.biases = [np.zeros((dim, 1)) for dim in self.layer_dimensions[1:]]
+        self.delta_ws = [np.zeros(w.shape) for w in self.weights]
+        self.delta_bs = [np.zeros(b.shape) for b in self.biases]
 
-    def SGD(self, epochs, lr, batch_size, train):
+    def SGD(self, epochs, parameters, batch_size, train):
         """
 
         :param epochs: number of iterations over the dataset
-        :param lr: learning rate
+        :param parameters: learning rate and/or momentum
         :param batch_size:
         :param train: train set
         :return: lists of weight sizes, test and train losses over epochs
         """
         num_of_batches = len(train) // batch_size
-        training_losses = []
+        training_loss = []
         avg_weights = []
+        if len(parameters) == 1:
+            step_func = partial(self.vanilla_batch_step, parameters["lr"])
+        else:
+            step_func = partial(self.momentum_batch_step, parameters["lr"], parameters["momentum"])
         for _ in tqdm(range(epochs)):
             np.random.shuffle(train)
             batches = np.array_split(train, num_of_batches)
-            training_loss = 0
+            batch_loss = 0
             for batch in batches:
-                training_loss += self.batch_step(batch, lr)
-            training_losses.append(training_loss / len(train))
+                batch_loss += step_func(batch)
+            training_loss.append(batch_loss / len(train))
             avg_weights.append(self.average_weights())
 
-        return {"train_loss": training_losses, "avg_weight": avg_weights}
+        return {"train_loss": training_loss, "avg_weight": avg_weights}
 
-    def batch_step(self, batch, lr):
+    def momentum_batch_step(self, lr, momentum, batch):
         """
          preform on step of gradient descent w.r.t batch
         :param batch: batch of samples
         :param lr: learning rate
+        :param momentum: momentum constant
         :return: loss over the batch
         """
         batch_eval = 0
@@ -56,6 +64,27 @@ class Network(object):
             partial_ws = [w + w_x for w, w_x in zip(partial_ws, partial_ws_x)]
             partial_bs = [b + b_x for b, b_x in zip(partial_bs, partial_bs_x)]
             batch_eval += loss_x
+
+        self.delta_ws = [momentum * momentum_w + (lr / len(batch)) * partial_w for momentum_w, partial_w in
+                         zip(self.delta_ws, partial_ws)]
+        self.delta_bs = [momentum * momentum_b + (lr / len(batch)) * partial_b for momentum_b, partial_b in
+                         zip(self.delta_bs, partial_bs)]
+
+        self.weights = [w - d_w for w, d_w in zip(self.weights, self.delta_ws)]  # make gradient descent step
+        self.biases = [b - d_b for b, d_b in zip(self.biases, self.delta_bs)]
+
+        return batch_eval
+
+    def vanilla_batch_step(self, lr, batch):
+        batch_eval = 0
+        partial_ws = [np.zeros(w.shape) for w in self.weights]
+        partial_bs = [np.zeros(b.shape) for b in self.biases]
+        for x, y in batch:
+            partial_ws_x, partial_bs_x, loss_x = self.backward(x, y)  # calculate gradient w.r.t parameters at point x,y
+            partial_ws = [w + w_x for w, w_x in zip(partial_ws, partial_ws_x)]
+            partial_bs = [b + b_x for b, b_x in zip(partial_bs, partial_bs_x)]
+            batch_eval += loss_x
+
         self.weights = [w - (lr / len(batch)) * d_w for w, d_w in
                         zip(self.weights, partial_ws)]  # make gradient descent step
         self.biases = [b - (lr / len(batch)) * d_b for b, d_b in zip(self.biases, partial_bs)]

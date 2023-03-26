@@ -53,60 +53,38 @@ sigmoid_kit = {"func": sigmoid, "d_func": d_sigmoid}
 swish_kit = {"func": swish, "d_func": d_swish}
 snake_kit = {"func": snake, "d_func": d_snake}
 
-activation_func_dict = {"relu": {"activation": relu_kit,
-                                 "batch_size": 100,
-                                 },
-                        "tanh": {"activation": tanh_kit,
-                                 "batch_size": 100,
-                                 },
-                        "sigmoid": {"activation": sigmoid_kit,
-                                    "batch_size": 100,
-                                    },
-                        "swish": {"activation": swish_kit,
-                                  "batch_size": 100,
-                                  },
-                        "snake": {"activation": snake_kit,
-                                  "batch_size": 100,
-                                  },
-                        }
+#####################
+# experiment dict format: {
+#                         name: experiment_params: {
+# "layers" : num of layers
+# "activation" : {
+#                                                                    "func": activation function
+#                                                                    "d_func": derivative
+#                                                                    }
+# "batch_size" : <int>
+# "sgd_params" : {
+#                                                                    "lr": learning rate
+#                                                                    "momentum": <float> (optional)
+#                                                                    }
 
-partial_dict = {"relu_100%batch": {"activation": relu_kit,
-                                   "batch_size": 100
-                                   },
-                "tanh_100%batch": {"activation": tanh_kit,
-                                   "batch_size": 100
-                                   },
-                "snake_100%batch": {"activation": snake_kit,
-                                    "batch_size": 100
-                                    },
-                }
-tanh_batch_size_dict = {"tanh_1%batch": {"activation": tanh_kit,
-                                         "batch_size": 100
-                                         },
-                        "tanh_10%batch": {"activation": tanh_kit,
-                                          "batch_size": 1000
-                                          },
-                        "tanh_100%batch": {"activation": tanh_kit,
-                                           "batch_size": 10000
-                                           },
+num_of_samples = 1000
+num_of_predictions = 1000
+num_of_total_steps = 1000
 
-                        }
-tanh_one_batch_dict = {"tanh_100%batch": {"activation": tanh_kit,
-                                          "batch_size": 10000
-                                          },
+vanilla_sgd_tanh = {"layers": [1, 50, 1],
+                    "activation": tanh_kit,
+                    "batch_size": num_of_samples,
+                    "epochs": num_of_total_steps,
+                    "sgd_params": {"lr": 0.008}}
+momentum_sgd_tanh = {"layers": [1, 50, 1],
+                     "activation": tanh_kit,
+                     "batch_size": num_of_samples,
+                     "epochs": num_of_total_steps,
+                     "sgd_params": {"lr": 0.008, "momentum": 0.8}}
 
-                       }
-swish_batch_size_dict = {"swish_1%batch": {"activation": swish_kit,
-                                           "batch_size": 100
-                                           },
-                         "swish_10%batch": {"activation": swish_kit,
-                                            "batch_size": 1000
-                                            },
-                         "swish_100%batch": {"activation": swish_kit,
-                                             "batch_size": 10000
-                                             },
-
-                         }
+vanilla_vs_momentum_experiment = {"vanilla sgd": vanilla_sgd_tanh,
+                                  "momentum sgd": momentum_sgd_tanh
+                                  }
 
 
 def L2Loss(out, y):
@@ -154,17 +132,17 @@ def plot_data(data, input_dim, name):
     plt.close()
 
 
-def plot_loss(epochs, train_losses, name):
+def plot_loss(epochs, train_losses, file_name):
     fig = plt.figure()
     ax = fig.add_subplot()
-    for activation in train_losses.keys():
-        ax.plot(epochs, train_losses[activation]["stats"]["train_loss"], label=f"{activation} training loss")
+    for name in train_losses.keys():
+        ax.plot(epochs, train_losses[name]["stats"]["train_loss"], label=f"{name} training loss")
         ax.legend()
-    plt.savefig(name)
+    plt.savefig(file_name)
     plt.close()
 
 
-def plot_average_weight(epochs, weights, rows, cols, name):
+def plot_average_weight(epochs, weights, rows, cols, file_name):
     fig, axs = plt.subplots(rows, cols)
     for row in range(rows):
         for col in range(cols):
@@ -173,12 +151,12 @@ def plot_average_weight(epochs, weights, rows, cols, name):
                 axs[row].plot(epochs, ws,
                               label=f"{activation} network weights for layer {row + 1}")
     plt.legend()
-    plt.savefig(name)
+    plt.savefig(file_name)
     plt.close()
 
 
-def plot_predictions(nn, x_dim, num_of_samples, name):
+def plot_predictions(nn, x_dim, num_of_samples, file_name):
     xs = np.random.uniform(-width, width, size=(num_of_samples, x_dim))
-    for activation in nn.keys():
-        preds = nn[activation]["net"].predict(xs)
-        plot_data([(xs[i, :], preds[i]) for i in range(num_of_samples)], x_dim, f"{activation}_{name}")
+    for name in nn.keys():
+        preds = nn[name]["net"].predict(xs)
+        plot_data([(xs[i, :], preds[i]) for i in range(num_of_samples)], x_dim, f"{name} {file_name}")
